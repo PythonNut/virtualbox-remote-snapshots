@@ -21,8 +21,6 @@ switch ($Mode) {
   1 {$Mode = "manual"}
 }
 
-
-
 # Detect if the system has a battery (so we can avoid killing it)
 $Battery = $false
 If ($Mode -eq "auto") {
