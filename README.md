@@ -48,3 +48,7 @@ Since only modified blocks are transmitted, a recent snapshot can often be resto
 Since `borg` is a forever-incremental system, snapshot restores run in constant time with respect to the total number of snapshots.
 
 Snapshots can be pruned with no interaction from the host at all, online or offline.
+
+# Disclaimer 
+
+This system is still in a very early state. Lots of important functionality is missing, and many design decisions still need to be made. The code is TBH pretty horrifying. 
