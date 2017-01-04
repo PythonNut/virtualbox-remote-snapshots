@@ -9,6 +9,9 @@ If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
   Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs; exit
 }
 
+# EOL hack to stop Cygwin from complaining about carriage returns
+$EOL=";: "
+
 # Parse the config file
 Get-Content "$Pwd\virtualbox-remote-snapshots.conf" | ForEach-Object -begin {$Conf=@{}} -process {
   $Key = [regex]::split($_, '=')
@@ -115,12 +118,12 @@ While ($true) {
 
     # Start the backup
     & "C:\Program Files\Borg\bin\bash.exe" -l -c @"
-    export BORG_PASSPHRASE=${PlainPassword};: 
-    echo Starting borg backup...;: 
-    cd $BorgTarget;: 
-    borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'{now:%Y.%m.%d-%H.%M.%S}-vms-$StateSuffix-{hostname}-{user}' .;:
-    echo Starting borg prune...;: 
-    borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3;:
+    export BORG_PASSPHRASE=${PlainPassword}${EOL}
+    echo Starting borg backup...${EOL}
+    cd $BorgTarget${EOL}
+    borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'{now:%Y.%m.%d-%H.%M.%S}-vms-$StateSuffix-{hostname}-{user}' .${EOL}
+    echo Starting borg prune...${EOL}
+    borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
     Remove-Variable PlainPassword
   }
