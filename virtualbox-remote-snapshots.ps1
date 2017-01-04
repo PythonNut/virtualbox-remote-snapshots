@@ -1,7 +1,27 @@
+# We get passed the pwd, so we can look for the config file
+param(
+  [string]$Pwd
+)
+
 # Self-elevating stub, since VSS snapshots can only be created by an administrator
-If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { 
-  Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs; exit 
+If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+  $Pwd = (Convert-Path .)
+  Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs; exit
 }
+
+# Parse the config file
+Get-Content "$Pwd\virtualbox-remote-snapshots.conf" | ForEach-Object -begin {$Conf=@{}} -process {
+  $Key = [regex]::split($_, '=')
+  if(($Key[0] -ne '') -and ($Key[0].StartsWith("[") -ne $True)) {
+    $Conf.Add($Key[0], $Key[1])
+  }
+}
+
+Write-Host 'Config:'
+Write-Host ($Conf | Out-String)
+
+$BackupHost = $Conf.BackupHost
+$BackupHostPath = $Conf.BackupHostPath
 
 # Query the user for the backup password
 $SecurePassword = Read-Host -Prompt "Enter password" -AsSecureString
@@ -98,9 +118,9 @@ While ($true) {
     export BORG_PASSPHRASE=${PlainPassword};: 
     echo Starting borg backup...;: 
     cd $BorgTarget;: 
-    borg create -vspx -C lz4 pythonnut@snapdragon:/mnt/backup/Borgs/VMsBorg::'{now:%Y.%m.%d-%H.%M.%S}-vms-$StateSuffix-{hostname}-{user}' .;: 
+    borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'{now:%Y.%m.%d-%H.%M.%S}-vms-$StateSuffix-{hostname}-{user}' .;:
     echo Starting borg prune...;: 
-    borg prune -vs --list pythonnut@snapdragon:/mnt/backup/Borgs/VMsBorg --keep-within 2H -H 8 -d 7 -w 3;: 
+    borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3;:
 "@
     Remove-Variable PlainPassword
   }
