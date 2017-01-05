@@ -9,6 +9,46 @@ If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
   Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs; exit
 }
 
+Write-Host 'Probing for VMs...'
+
+$VBoxManage = 'C:\Program Files\Oracle\VirtualBox\VBoxManage'
+
+$VMs = (& $VBoxManage list vms)
+For ($I = 0; $I -lt $VMs.count; $I++) {
+  $VMs[$I] = [regex]::match($VMs[$I], '\"(.*?)\"').Groups[1].Value
+  Write-Host ('[{0}] {1}' -f $I, $VMs[$I])
+}
+
+While ($true) {
+  $VMIndex = ((Read-Host 'Press select a VM by number') -as [int])
+  If (0 -le $VMIndex -le $VMs.count - 1) {
+    $VMname = $VMs[$VMIndex]
+    Break
+  }
+  Else {
+    Write-Host 'Index out of range!'
+  }
+}
+
+Write-Host 'Detecting VM location...'
+
+$VMInfo = (& $VBoxManage showvminfo $VMName)
+
+$VMConfigFile = ($VMInfo | Select-String 'Config file:')
+$VMConfigFile = [regex]::match($VMConfigFile, 'Config file:\s+(.*)$')
+$VMConfigFile = $VMConfigFile.Groups[1].Value
+
+$VMLocation = ($VMConfigFile -replace '[^\\]*$')
+$VSSDriveLetter = $VMConfigFile.Substring(0, 1)
+$VSSTarget = '{0}:\.atomic' -f $VSSDriveLetter
+
+
+$BorgTarget = '/cygdrive/{0}/.atomic' -f $VSSDriveLetter.ToLower()
+$BorgTarget = $BorgTarget + ($VMLocation -replace '.:')
+$BorgTarget = $BorgTarget -replace '\\', '/' -replace ' ', '\\ '
+
+Write-Host "VM located at: $BorgTarget"
+
 # EOL hack to stop Cygwin from complaining about carriage returns
 $EOL=";: "
 
@@ -54,20 +94,6 @@ If ($Mode -eq 'auto') {
     }
   } 
   Catch { }
-}
-
-# Detect the Virtual Machine path
-If (Test-Path 'E:\VirtualBox VMs') {
-  Write-Host 'Detected external VM folder'
-  $VSSTarget = 'E:\.atomic'
-  $VSSDriveLetter = 'E'
-  $BorgTarget = '/cygdrive/e/.atomic/VirtualBox\\ VMs/'
-}
-Else {
-  Write-Host 'Detected internal VM folder'
-  $VSSTarget = 'C:\.atomic'
-  $VSSDriveLetter = 'C'
-  $BorgTarget = '/cygdrive/c/.atomic/Users/Pytho/VirtualBox\\ VMs/'
 }
 
 While ($true) {
