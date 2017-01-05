@@ -69,54 +69,7 @@ $BackupHostPath = $Conf.BackupHostPath
 # Query the user for the backup password
 $SecurePassword = Read-Host -Prompt 'Enter password' -AsSecureString
 
-# Query the user for the backup mode
-$Title = 'Backup Mode'
-$Message = 'What backup strategy do you want to use?'
-$Automatic = New-Object System.Management.Automation.Host.ChoiceDescription '&Automatic', `
-    'Backup automatically every 20 minutes.'
-$Manual = New-Object System.Management.Automation.Host.ChoiceDescription '&Manual', `
-    'Backup manually on user request.'
-$Options = [System.Management.Automation.Host.ChoiceDescription[]]($Automatic, $Manual)
-$Mode = $host.ui.PromptForChoice($Title, $Message, $Options, 0)
-
-switch ($Mode) {
-  0 {$Mode = 'auto'}
-  1 {$Mode = 'manual'}
-}
-
-# Detect if the system has a battery (so we can avoid killing it)
-$Battery = $false
-If ($Mode -eq 'auto') {
-  Try {
-    If ((Get-WmiObject -Class BatteryStatus -Namespace root\wmi -List) -ne $null) {
-      Write-Host 'Detected internal battery'
-      $Battery = True
-    }
-  } 
-  Catch { }
-}
-
 While ($true) {
-  $Counter = 0
-  If ($Battery -and !(Get-WmiObject -Class BatteryStatus -Namespace root\wmi).PowerOnLine) {
-    Write-Host 'On battery power. Plug laptop in or press any key to backup:'
-
-    While (!$Host.UI.RawUI.KeyAvailable) {
-      [Threading.Thread]::Sleep(1000)
-      $Counter++
-      If ($Counter % 60 * 1 -eq 0) {
-        If ((Get-WmiObject -Class BatteryStatus -Namespace root\wmi).PowerOnLine) {
-          Break
-        }
-      }
-    }
-
-    # Clear the pending key
-    If ($host.ui.RawUI.KeyAvailable) {
-      $host.ui.RawUI.ReadKey('IncludeKeyDown,NoEcho')
-    }
-  }
-
   # Cleanup the VSS link target, just in case
   If (Test-Path "${VSSTarget}") {
     cmd /c "rmdir /s /q ${VSSTarget}"
@@ -150,7 +103,7 @@ cd $BorgTarget${EOL}
 borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'$BorgArchiveTag-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
 echo Starting borg prune...${EOL}
 borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3${EOL}
-"@
+"@j
     Remove-Variable PlainPassword
   }
   Catch {
@@ -162,19 +115,6 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7
     vssadmin delete shadows /shadow=$ShadowID /quiet
     Write-Output "Successfully deleted shadow copy ${ShadowID}."
   }
-  
-  If ($Mode -eq "manual") {
-    Read-Host 'Press Enter to backup again...' | Out-Null
-  }
-  Else {
-    Write-Host 'Waiting 20 minutes til next backup... Press any key to backup immediately:'
 
-    While (!$Host.UI.RawUI.KeyAvailable -and ($Counter++ -lt 60 * 1)) {
-      [Threading.Thread]::Sleep(1000)
-    }
-    # Clear the pending key
-    If ($host.ui.RawUI.KeyAvailable) {
-      $host.ui.RawUI.ReadKey('IncludeKeyDown,NoEcho')
-    }
-  }
+  Read-Host 'Press Enter to backup again...' | Out-Null
 }
