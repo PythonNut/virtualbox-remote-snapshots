@@ -4,7 +4,7 @@ param(
 )
 
 # Self-elevating stub, since VSS snapshots can only be created by an administrator
-If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
   $Pwd = (Convert-Path .)
   Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs; exit
 }
@@ -27,29 +27,29 @@ $BackupHost = $Conf.BackupHost
 $BackupHostPath = $Conf.BackupHostPath
 
 # Query the user for the backup password
-$SecurePassword = Read-Host -Prompt "Enter password" -AsSecureString
+$SecurePassword = Read-Host -Prompt 'Enter password' -AsSecureString
 
 # Query the user for the backup mode
-$Title = "Backup Mode"
-$Message = "What backup strategy do you want to use?"
-$Automatic = New-Object System.Management.Automation.Host.ChoiceDescription "&Automatic", `
-    "Backup automatically every 20 minutes."
-$Manual = New-Object System.Management.Automation.Host.ChoiceDescription "&Manual", `
-    "Backup manually on user request."
+$Title = 'Backup Mode'
+$Message = 'What backup strategy do you want to use?'
+$Automatic = New-Object System.Management.Automation.Host.ChoiceDescription '&Automatic', `
+    'Backup automatically every 20 minutes.'
+$Manual = New-Object System.Management.Automation.Host.ChoiceDescription '&Manual', `
+    'Backup manually on user request.'
 $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Automatic, $Manual)
 $Mode = $host.ui.PromptForChoice($Title, $Message, $Options, 0)
 
 switch ($Mode) {
-  0 {$Mode = "auto"}
-  1 {$Mode = "manual"}
+  0 {$Mode = 'auto'}
+  1 {$Mode = 'manual'}
 }
 
 # Detect if the system has a battery (so we can avoid killing it)
 $Battery = $false
-If ($Mode -eq "auto") {
+If ($Mode -eq 'auto') {
   Try {
     If ((Get-WmiObject -Class BatteryStatus -Namespace root\wmi -List) -ne $null) {
-      Write-Host "Detected internal battery"
+      Write-Host 'Detected internal battery'
       $Battery = True
     }
   } 
@@ -58,16 +58,16 @@ If ($Mode -eq "auto") {
 
 # Detect the Virtual Machine path
 If (Test-Path 'E:\VirtualBox VMs') {
-  Write-Host "Detected external VM folder"
-  $VSSTarget = "E:\.atomic"
-  $VSSDriveLetter = "E"
-  $BorgTarget = "/cygdrive/e/.atomic/VirtualBox\\ VMs/"
+  Write-Host 'Detected external VM folder'
+  $VSSTarget = 'E:\.atomic'
+  $VSSDriveLetter = 'E'
+  $BorgTarget = '/cygdrive/e/.atomic/VirtualBox\\ VMs/'
 }
 Else {
-  Write-Host "Detected internal VM folder"
-  $VSSTarget = "C:\.atomic"
-  $VSSDriveLetter = "C"
-  $BorgTarget = "/cygdrive/c/.atomic/Users/Pytho/VirtualBox\\ VMs/"
+  Write-Host 'Detected internal VM folder'
+  $VSSTarget = 'C:\.atomic'
+  $VSSDriveLetter = 'C'
+  $BorgTarget = '/cygdrive/c/.atomic/Users/Pytho/VirtualBox\\ VMs/'
 }
 
 While ($true) {
@@ -87,7 +87,7 @@ While ($true) {
 
     # Clear the pending key
     If ($host.ui.RawUI.KeyAvailable) {
-      $host.ui.RawUI.ReadKey("IncludeKeyDown,NoEcho")
+      $host.ui.RawUI.ReadKey('IncludeKeyDown,NoEcho')
     }
   }
 
@@ -109,7 +109,7 @@ While ($true) {
 
     # Check if VMs are online
     $VMsOffline = (& 'C:\Program Files\Oracle\VirtualBox\VBoxManage' list runningvms) -eq $null
-    $StateSuffix = If ($VMsOnline) { "offline" } Else { "online" } 
+    $StateSuffix = If ($VMsOnline) { 'offline' } Else { 'online' }
 
     # Decrypt the password in memory
     $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
@@ -128,7 +128,7 @@ While ($true) {
     Remove-Variable PlainPassword
   }
   Catch {
-    Write-Output "An error has occured. Cleaning up..."
+    Write-Output 'An error has occured. Cleaning up...'
   }
   Finally {
     # Remove the VSS target and delete the VSS snapshot
@@ -148,7 +148,7 @@ While ($true) {
     }
     # Clear the pending key
     If ($host.ui.RawUI.KeyAvailable) {
-      $host.ui.RawUI.ReadKey("IncludeKeyDown,NoEcho")
+      $host.ui.RawUI.ReadKey('IncludeKeyDown,NoEcho')
     }
   }
 }
