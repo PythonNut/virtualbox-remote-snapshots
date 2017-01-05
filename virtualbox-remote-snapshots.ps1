@@ -42,10 +42,10 @@ $VMLocation = ($VMConfigFile -replace '[^\\]*$')
 $VSSDriveLetter = $VMConfigFile.Substring(0, 1)
 $VSSTarget = '{0}:\.atomic' -f $VSSDriveLetter
 
-
 $BorgTarget = '/cygdrive/{0}/.atomic' -f $VSSDriveLetter.ToLower()
 $BorgTarget = $BorgTarget + ($VMLocation -replace '.:')
 $BorgTarget = $BorgTarget -replace '\\', '/' -replace ' ', '\\ '
+$BorgArchiveTag = $VMName -replace ' ','-'
 
 Write-Host "VM located at: $BorgTarget"
 
@@ -144,12 +144,12 @@ While ($true) {
 
     # Start the backup
     & "C:\Program Files\Borg\bin\bash.exe" -l -c @"
-    export BORG_PASSPHRASE=${PlainPassword}${EOL}
-    echo Starting borg backup...${EOL}
-    cd $BorgTarget${EOL}
-    borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'{now:%Y.%m.%d-%H.%M.%S}-vms-$StateSuffix-{hostname}-{user}' .${EOL}
-    echo Starting borg prune...${EOL}
-    borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3${EOL}
+export BORG_PASSPHRASE=${PlainPassword}${EOL}
+echo Starting borg backup...${EOL}
+cd $BorgTarget${EOL}
+borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'$BorgArchiveTag-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
+echo Starting borg prune...${EOL}
+borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
     Remove-Variable PlainPassword
   }
