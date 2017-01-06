@@ -25,6 +25,7 @@ Write-Host ($Conf | Out-String)
 
 $BackupHost = $Conf.BackupHost
 $BackupHostPath = $Conf.BackupHostPath
+$RemoteMountpoint = $Conf.RemoteMountpoint
 
 # Query the user for the backup password
 $SecurePassword = Read-Host -Prompt 'Enter password' -AsSecureString
@@ -147,6 +148,71 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7
   }
 }
 
+Function Snapshot-Restore () {
+  # TODO: Ensure VM is powered off before restoring
+
+  $ExtractTarget = ($BorgTarget -replace '\.atomic/' -replace 'cygdrive','mnt')
+
+  # Decrypt the password in memory
+  $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
+  $PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+  Remove-Variable BSTR
+
+  # Mount the borg repository
+  Write-Host "Getting list of Archives..."
+  $MountpointTest=(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -1 ${RemoteMountpoint}'")
+  If ($MountpointTest.count -gt 0) {
+    & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+  }
+
+  Write-Host "Verified mountpoint."
+
+  Try {
+    & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
+    Remove-Variable PlainPassword
+
+    Write-Host "Mount completed"
+    $Archives=@(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -1d ${RemoteMountpoint}/${BorgArchiveTag}*'")
+    Write-Host "Archive list retrieved"
+    Write-Host ""
+    Write-Host "Select archive to restore:"
+    For ($I = 0; $I -lt $Archives.count; $I++) {
+      Write-Host ("[{0:00}] {1}" -f $I, $Archives[$I])
+    }
+
+    # TODO: Validate this input
+    $Archive = $Archives[(Read-Host 'Enter archive number') -as [int]]
+    Write-Host ("Restoring archive {0}..." -f $Archive)
+
+    $Path = ""
+
+    While ($true) {
+      $DirScan = @(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -A1 ${Archive}/${Path}'")
+
+      If (($DirScan -like '*.vbox').count -eq 1) {
+        Break
+      }
+      ElseIf ($DirScan.count -gt 1) {
+        Throw "Could not detect VM config file in archive!"
+      }
+
+      $Path = $Path + ($DirScan[0] -replace " ","\ ") + "/"
+    }
+
+    Write-Host ("Detected VM folder: {0}." -f $Path)
+
+    bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com -o Compression=no' --inplace --info=progress2 --stats --delete-before ${BackupHost}:'${Archive}/${Path}' ${ExtractTarget}/"
+  }
+  Catch {
+    Write-Output $_.Exception.Message
+    Write-Output "An error has occured. Cleaning up..."
+  }
+  Finally {
+    & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+    Write-Host "Unmounted filesystem."
+  }
+}
+
 Select-VM
 
 While ($true) {
@@ -188,7 +254,9 @@ While ($true) {
     1 {
       Snapshot-Prune
     }
-    2 { }
+    2 {
+      Snapshot-Restore
+    }
     3 {
       Select-VM
     }
