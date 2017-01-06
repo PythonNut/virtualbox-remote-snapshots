@@ -114,6 +114,7 @@ borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'$BorgArchiveTag-{now:
     Remove-Variable PlainPassword
   }
   Catch {
+    Write-Output $_.Exception.Message
     Write-Output 'An error has occured. Cleaning up...'
   }
   Finally {
@@ -141,6 +142,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7
     Remove-Variable PlainPassword
   }
   Catch {
+    Write-Output $_.Exception.Message
     Write-Output 'An error has occured. Cleaning up...'
   }
 }
