@@ -3,14 +3,14 @@ param(
   [string]$Pwd
 )
 
-Function Send-Tcp-Message ($message=$([char]4), $port=8998, $server="localhost") {
-  $client = New-Object System.Net.Sockets.TcpClient $server, $port
-  $stream = $client.GetStream()
-  $writer = New-Object System.IO.StreamWriter $stream
-  $writer.Write($message)
-  $writer.Dispose()
-  $stream.Dispose()
-  $client.Dispose()
+Function Send-Tcp-Message ($Message=$([char]4), $Port=8998, $Server="localhost") {
+  $Client = New-Object System.Net.Sockets.TcpClient $Server, $Port
+  $Stream = $Client.GetStream()
+  $Writer = New-Object System.IO.StreamWriter $Stream
+  $Writer.Write($Message)
+  $Writer.Dispose()
+  $Stream.Dispose()
+  $Client.Dispose()
 }
 
 # Self-elevating stub, since VSS snapshots can only be created by an administrator
@@ -46,18 +46,19 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     Write-Output "Successfully deleted shadow copy ${Global:ShadowID}."
   }
 
-  function Listen-Port ($Port=8998) {
+  Function Listen-Port ($Port=8998) {
     $Endpoint = New-Object System.Net.IPEndPoint ([system.net.ipaddress]::any, $Port)
     $Listener = New-Object System.Net.Sockets.TcpListener $Endpoint
     $Listener.Start()
 
-    do {
+    Do {
       $Client = $Listener.AcceptTcpClient() # will block here until connection
       $Stream = $Client.GetStream();
       $Reader = New-Object System.IO.StreamReader $Stream
       Try {
         Do {
           $Line = $Reader.ReadLine()
+          Write-Host $Line -fore cyan
           If ($Line -match 'VSSTarget=.*?') {
             $Global:VSSTarget = $Line -replace 'VSSTarget='
             Write-Host 'Set VSSTarget'
@@ -77,8 +78,7 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
           ElseIf ($Line -eq 'exit') {
             Exit
           }
-          Write-Host $Line -fore cyan
-        } while ($Line -and $Line -ne ([char]4))
+        } While ($Line -and $Line -ne ([char]4))
       }
       Catch { }
       Finally {
@@ -86,19 +86,22 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
         $Stream.Dispose()
         $Client.Dispose()
       }
-    } while ($line -ne ([char]4))
+    } While ($line -ne ([char]4))
     $Listener.Stop()
   }
 
   Try {
+    Write-Host "VSS helper ready."
+
     Listen-Port 8230
   }
   Catch {
+    Write-Output $_.Exception.Message
     Write-Host "An error occurred..."
   }
   Finally { Vss-Snapshot-Delete }
-
-} Else {
+}
+Else {
   Try {
     function Await-Tcp-Response ($Port=8998) {
       $Endpoint = New-Object System.Net.IPEndPoint ([system.net.ipaddress]::any, $Port)
@@ -126,7 +129,7 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     }
 
     $Pwd = (Convert-Path .)
-    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs
+    Start-Process powershell.exe "-NoProfile -NoExit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs
     # EOL hack to stop Cygwin from complaining about carriage returns
     $EOL=";: "
 
@@ -146,7 +149,8 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     $RemoteMountpoint = $Conf.RemoteMountpoint
 
     # Query the user for the backup password
-    $SecurePassword = Read-Host -Prompt 'Enter password' -AsSecureString
+    Write-Host 'Enter password: ' -NoNewline -Fore magenta
+    $SecurePassword = Read-Host -AsSecureString
 
     $VMName = ""
     $VMLocation = ""
@@ -156,6 +160,7 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     $BorgArchiveTag = ""
 
     $VBoxManage = 'C:\Program Files\Oracle\VirtualBox\VBoxManage'
+    $BorgBash = 'C:\Program Files\Borg\bin\bash.exe'
 
     Function Select-VM () {
       Write-Host 'Probing for VMs...'
@@ -167,7 +172,14 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
       }
 
       While ($true) {
-        $VMIndex = ((Read-Host 'Press select a VM by number') -as [int])
+        Write-Host 'Select a VM by number: ' -nonewline -fore magenta
+        $VMIndex = Read-Host
+        Try {
+          $VMIndex = $VMIndex -as [int]
+        }
+        Catch {
+          Continue
+        }
         If (0 -le $VMIndex -le $VMs.count - 1) {
           $Global:VMname = $VMs[$VMIndex]
           Break
@@ -223,7 +235,7 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
         Remove-Variable BSTR
 
         # Start the backup
-        & "C:\Program Files\Borg\bin\bash.exe" -l -c @"
+        & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
 echo Starting borg backup...${EOL}
 cd ${Global:BorgTarget}${EOL}
@@ -255,7 +267,7 @@ borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveT
         Remove-Variable BSTR
 
         # Start the backup
-        & "C:\Program Files\Borg\bin\bash.exe" -l -c @"
+        & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
 echo Starting borg prune...${EOL}
 borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
@@ -271,7 +283,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
     Function Snapshot-Restore () {
       # TODO: Ensure VM is powered off before restoring
 
-      $ExtractTarget = ($BorgTarget -replace '\.atomic/' -replace 'cygdrive','mnt')
+      $ExtractTarget = ($BorgTarget -replace '\.atomic/' -replace 'cygdrive', 'mnt')
 
       # Decrypt the password in memory
       $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
@@ -282,32 +294,53 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
       Write-Host "Getting list of Archives..."
       $MountpointTest=(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -1 ${RemoteMountpoint}'")
       If ($MountpointTest.count -gt 0) {
-        & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+        & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
       }
 
       Write-Host "Verified mountpoint."
 
       Try {
-        & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
+        & $BorgBash -l -c "ssh ${BackupHost} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
         Remove-Variable PlainPassword
 
         Write-Host "Mount completed"
-        $Archives=@(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -1d ${RemoteMountpoint}/${BorgArchiveTag}*'")
+        $Archives=@(& $BorgBash -l -c "ssh ${BackupHost} 'ls -1d ${RemoteMountpoint}/${BorgArchiveTag}*'")
+
         Write-Host "Archive list retrieved"
-        Write-Host ""
+        Write-Host
         Write-Host "Select archive to restore:"
+
         For ($I = 0; $I -lt $Archives.count; $I++) {
-          Write-Host ("[{0:00}] {1}" -f $I, $Archives[$I])
+          Write-Host ("[{0: 0}] {1}" -f $I, $Archives[$I])
         }
 
         # TODO: Validate this input
-        $Archive = $Archives[(Read-Host 'Enter archive number') -as [int]]
+        $ArchiveLatest = $Archives.count - 1
+        While ($true) {
+          Write-Host "Enter archive number (default is \"${ArchiveLatest}\"): " -nonewline -fore magenta
+          $ArchiveSelected = Read-Host
+          If ($ArchiveSelected -eq "") {
+            $ArchiveSelected = $ArchiveLatest
+          }
+          Else {
+            Try {
+              $ArchiveSelected = $ArchiveSelected -as [int]
+            }
+            Catch {
+              Continue
+            }
+            If (0 -le $ArchiveSelected -le $Archives.count - 1) {
+              $Archive = $Archives[$ArchiveSelected]
+              Break
+            }
+          }
+        }
         Write-Host ("Restoring archive {0}..." -f $Archive)
 
         $Path = ""
 
         While ($true) {
-          $DirScan = @(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -A1 ${Archive}/${Path}'")
+          $DirScan = @(& $BorgBash -l -c "ssh ${BackupHost} 'ls -A1 ${Archive}/${Path}'")
 
           If (($DirScan -like '*.vbox').count -eq 1) {
             Break
@@ -328,7 +361,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
         Write-Output "An error has occured. Cleaning up..."
       }
       Finally {
-        & "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+        & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
         Write-Host "Unmounted filesystem."
       }
     }
