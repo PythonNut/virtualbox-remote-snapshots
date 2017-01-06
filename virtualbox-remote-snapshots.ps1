@@ -128,8 +128,9 @@ Else {
       }
     }
 
+    # TODO: I'm pretty sure we don't need this pwd nonsense anymore
     $Pwd = (Convert-Path .)
-    Start-Process powershell.exe "-NoProfile -NoExit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs
+    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Pwd" -Verb RunAs
     # EOL hack to stop Cygwin from complaining about carriage returns
     $EOL=";: "
 
@@ -224,9 +225,21 @@ Else {
         & $VBoxManage snapshot $Global:VMname take "vrs-temp" --live
       }
 
-      Write-Host 'Creating VSS shadow...' -fore cyan
-      Send-Tcp-Message 'vss_create' 8230
-      Await-Tcp-Response 8231
+      Try {
+        Write-Host 'Creating VSS shadow...' -fore cyan
+        Send-Tcp-Message 'vss_create' 8230
+        Await-Tcp-Response 8231
+      }
+      Catch {
+        Write-Output $_.Exception.Message
+        Write-Host "An error occurred..."
+      }
+      Finally {
+        If ($VMsOnline) {
+          Write-Host 'Deleting online snapshot...' -fore cyan
+          & $VBoxManage snapshot $Global:VMname delete "vrs-temp"
+        }
+      }
 
       Try {
         # Decrypt the password in memory
@@ -251,11 +264,6 @@ borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveT
         Write-Host 'Deleting VSS shadow...' -fore cyan
         Send-Tcp-Message 'vss_delete' 8230
         Await-Tcp-Response 8231
-
-        If ($VMsOnline) {
-          Write-Host 'Deleting online snapshot...' -fore cyan
-          & $VBoxManage snapshot $Global:VMname delete "vrs-temp"
-        }
       }
     }
 
