@@ -136,9 +136,8 @@ Function Snapshot-Prune () {
     # Start the backup
     & "C:\Program Files\Borg\bin\bash.exe" -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
-cd $BorgTarget${EOL}
 echo Starting borg prune...${EOL}
-borg prune -vs --list ${BackupHost}:${BackupHostPath} --keep-within 2H -H 8 -d 7 -w 3${EOL}
+borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
     Remove-Variable PlainPassword
   }
