@@ -203,14 +203,20 @@ If (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::
     }
 
     Function Snapshot-Create () {
-      Send-Tcp-Message "vss_create" 8230
+      # Check if VMs are online
+      $VMsOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
+      $StateSuffix = If ($VMsOnline) { 'online' } Else { 'offline' }
+
+      If ($VMsOnline) {
+        Write-Host 'Taking online snapshot...' -fore cyan
+        & $VBoxManage snapshot $Global:VMname take "vrs-temp" --live
+      }
+
+      Write-Host 'Creating VSS shadow...' -fore cyan
+      Send-Tcp-Message 'vss_create' 8230
       Await-Tcp-Response 8231
 
       Try {
-        # Check if VMs are online
-        $VMsOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
-        $StateSuffix = If ($VMsOnline) { 'online' } Else { 'offline' }
-
         # Decrypt the password in memory
         $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
         $PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
@@ -230,8 +236,14 @@ borg create -vspx -C lz4 ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveT
         Write-Output 'An error has occured. Cleaning up...'
       }
       Finally {
-        Send-Tcp-Message "vss_delete" 8230
+        Write-Host 'Deleting VSS shadow...' -fore cyan
+        Send-Tcp-Message 'vss_delete' 8230
         Await-Tcp-Response 8231
+
+        If ($VMsOnline) {
+          Write-Host 'Deleting online snapshot...' -fore cyan
+          & $VBoxManage snapshot $Global:VMname delete "vrs-temp"
+        }
       }
     }
 

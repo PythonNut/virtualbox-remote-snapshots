@@ -40,7 +40,7 @@ Since `borg` only transmits changed blocks which are then compressed, a full sna
 
 Snapshots can be taken while the guest is online. 
 Transient VSS snapshots are used to ensure that the guest's disk file is crash-consistent. 
-Support for fully consistent online snapshots is planned.
+Additionally, transient online VirtualBox snapshots ensure that the entire running state of the VM can be restored.
 
 Snapshot restores are incremental and resumable using a combination of `rsync` and `borg mount`. 
 Since only modified blocks are transmitted, a recent snapshot can often be restored in under a minute, even over a slow WiFi connection.
