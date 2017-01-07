@@ -360,6 +360,11 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
 
         Write-Host ("Detected VM folder: {0}." -f $Path)
 
+        $VMOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
+        If ($VMOnline) { 
+          & $VBoxManage controlvm $Global:VMname poweroff
+        }
+        
         bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
       }
       Catch {
