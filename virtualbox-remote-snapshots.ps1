@@ -202,8 +202,6 @@ Else {
       $Global:VSSDriveLetter = $VMConfigFile.Substring(0, 1)
       $Global:VSSTarget = '{0}:\.atomic' -f $Global:VSSDriveLetter
 
-      Write-Host $Global:VMLocation
-
       Send-Tcp-Message "VSSTarget=${Global:VSSTarget}" 8230
       Send-Tcp-Message "VSSDriveLetter=${Global:VSSDriveLetter}" 8230
 
@@ -217,10 +215,10 @@ Else {
 
     Function Snapshot-Create () {
       # Check if VMs are online
-      $VMsOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
-      $StateSuffix = If ($VMsOnline) { 'online' } Else { 'offline' }
+      $VMOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
+      $StateSuffix = If ($VMOnline) { 'online' } Else { 'offline' }
 
-      If ($VMsOnline) {
+      If ($VMOnline) {
         Write-Host 'Taking online snapshot...' -fore cyan
         & $VBoxManage snapshot $Global:VMname take "vrs-temp" --live
       }
@@ -235,7 +233,7 @@ Else {
         Write-Host "An error occurred..."
       }
       Finally {
-        If ($VMsOnline) {
+        If ($VMOnline) {
           Write-Host 'Deleting online snapshot...' -fore cyan
           & $VBoxManage snapshot $Global:VMname delete "vrs-temp"
         }
@@ -291,7 +289,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
     Function Snapshot-Restore () {
       # TODO: Ensure VM is powered off before restoring
 
-      $ExtractTarget = ($BorgTarget -replace '\.atomic/' -replace 'cygdrive', 'mnt')
+      $ExtractTarget = ($Global:BorgTarget -replace '\.atomic/' -replace 'cygdrive', 'mnt')
 
       # Decrypt the password in memory
       $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
@@ -300,7 +298,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
 
       # Mount the borg repository
       Write-Host "Getting list of Archives..."
-      $MountpointTest=(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'ls -1 ${RemoteMountpoint}'")
+      $MountpointTest=(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint} -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
       If ($MountpointTest.count -gt 0) {
         & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
       }
@@ -312,20 +310,20 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
         Remove-Variable PlainPassword
 
         Write-Host "Mount completed"
-        $Archives=@(& $BorgBash -l -c "ssh ${BackupHost} 'ls -1d ${RemoteMountpoint}/${BorgArchiveTag}*'")
+        $Archives=@(& $BorgBash -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint} -name \`"${Global:BorgArchiveTag}*\`" -maxdepth 1 ! -path . -printf \`"%f\n\`" | sort -n'")
 
         Write-Host "Archive list retrieved"
         Write-Host
         Write-Host "Select archive to restore:"
 
         For ($I = 0; $I -lt $Archives.count; $I++) {
-          Write-Host ("[{0: 0}] {1}" -f $I, $Archives[$I])
+          Write-Host ("[{0,2}] {1}" -f $I, $Archives[$I])
         }
 
         # TODO: Validate this input
         $ArchiveLatest = $Archives.count - 1
         While ($true) {
-          Write-Host "Enter archive number (default is \"${ArchiveLatest}\"): " -nonewline -fore magenta
+          Write-Host "Enter archive number (default is `"${ArchiveLatest}`"): " -nonewline -fore magenta
           $ArchiveSelected = Read-Host
           If ($ArchiveSelected -eq "") {
             $ArchiveSelected = $ArchiveLatest
@@ -348,7 +346,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
         $Path = ""
 
         While ($true) {
-          $DirScan = @(& $BorgBash -l -c "ssh ${BackupHost} 'ls -A1 ${Archive}/${Path}'")
+          $DirScan = @(& $BorgBash -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint}/${Archive}/${Path} -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
 
           If (($DirScan -like '*.vbox').count -eq 1) {
             Break
@@ -362,7 +360,7 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
 
         Write-Host ("Detected VM folder: {0}." -f $Path)
 
-        bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com -o Compression=no' --inplace --info=progress2 --stats --delete-before ${BackupHost}:'${Archive}/${Path}' ${ExtractTarget}/"
+        bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
       }
       Catch {
         Write-Output $_.Exception.Message
