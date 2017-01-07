@@ -370,6 +370,14 @@ borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --k
         & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
         Write-Host "Unmounted filesystem."
       }
+
+      $VMSnapshots = @(& $VBoxManage snapshot $Global:VMName list | Select-String 'vrs-temp')
+      If ($VMSnapshots.Count -ne 0) {
+        Write-Host 'Resolving snapshots...'
+        & $VBoxManage snapshot $Global:VMname restore 'vrs-temp'
+        & $VBoxManage snapshot $Global:VMName delete 'vrs-temp'
+      }
+      
     }
 
     Select-VM
