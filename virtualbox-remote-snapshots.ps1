@@ -152,8 +152,8 @@ Function Snapshot-Restore () {
 
   # Mount the borg repository
   Write-Host "Getting list of Archives..."
-  $MountpointTest=(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint} -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
-  If ($MountpointTest.count -gt 0) {
+  $MountpointTest=@(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'cd ${RemoteMountpoint}; find . -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
+  If ($MountpointTest.Count -ne 0) {
     & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
   }
 
