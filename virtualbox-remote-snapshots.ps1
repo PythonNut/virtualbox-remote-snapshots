@@ -103,7 +103,7 @@ Function Snapshot-Create () {
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
 echo Starting borg backup...${EOL}
 cd ${Global:BorgTarget}${EOL}
-borg create -vspx -C zlib,3 ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveTag}-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
+borg create -vspx -C lz4 ${BorgFlags} ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveTag}-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
 "@
     Remove-Variable PlainPassword
   }
