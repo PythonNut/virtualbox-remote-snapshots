@@ -15,6 +15,8 @@ Write-Host ($Conf | Out-String)
 $BackupHost = $Conf.BackupHost
 $BackupHostPath = $Conf.BackupHostPath
 $RemoteMountpoint = $Conf.RemoteMountpoint
+$BorgFlags = $Conf.BorgFlags
+$RsyncFlags = $Conf.RsyncFlags
 
 # Query the user for the backup password
 Write-Host 'Enter password: ' -NoNewline -Fore magenta
@@ -215,7 +217,7 @@ Function Snapshot-Restore () {
       & $VBoxManage controlvm $Global:VMname poweroff
     }
 
-    bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
+    bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${RsyncFlags} ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
   }
   Catch {
     Write-Output $_.Exception.Message
