@@ -179,6 +179,7 @@ Function Snapshot-Restore () {
       $ArchiveSelected = Read-Host
       If ($ArchiveSelected -eq "") {
         $ArchiveSelected = $ArchiveLatest
+        Break
       }
       Else {
         Try {
@@ -188,11 +189,11 @@ Function Snapshot-Restore () {
           Continue
         }
         If (0 -le $ArchiveSelected -le $Archives.count - 1) {
-          $Archive = $Archives[$ArchiveSelected]
           Break
         }
       }
     }
+    $Archive = $Archives[$ArchiveSelected]
     Write-Host ("Restoring archive {0}..." -f $Archive)
 
     $Path = ""
