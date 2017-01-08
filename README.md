@@ -4,7 +4,6 @@ An attempt at creating a new external snapshot system for VirtualBox, leveraging
 
 * [`borg` backup](https://github.com/borgbackup/borg)
 * [`rsync`](https://rsync.samba.org/)
-* [`VSS`](https://msdn.microsoft.com/en-us/library/windows/desktop/bb968832(v=vs.85).aspx)
 
 ## Motivation
 
@@ -39,8 +38,7 @@ Snapshots are stored remotely in a `borg` repository.
 Since `borg` only transmits changed blocks which are then compressed, a full snapshot can often be taken in under a minute, even over a slow WiFi connection. 
 
 Snapshots can be taken while the guest is online. 
-Transient VSS snapshots are used to ensure that the guest's disk file is crash-consistent. 
-Additionally, transient online VirtualBox snapshots ensure that the entire running state of the VM can be restored.
+Transient online VirtualBox snapshots ensure that the entire running state of the VM can be restored.
 
 Snapshot restores are incremental and resumable using a combination of `rsync` and `borg mount`. 
 Since only modified blocks are transmitted, a recent snapshot can often be restored in under a minute, even over a slow WiFi connection.
