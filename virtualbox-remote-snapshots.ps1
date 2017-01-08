@@ -101,6 +101,7 @@ Function Snapshot-Create () {
     # Start the backup
     & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
+export BORG_RSH='ssh -Tx -c aes128-gcm@openssh.com'${EOL}
 echo Starting borg backup...${EOL}
 cd ${Global:BorgTarget}${EOL}
 borg create -vspx -C lz4 ${BorgFlags} ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveTag}-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
@@ -127,6 +128,7 @@ Function Snapshot-Prune () {
     # Start the backup
     & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
+export BORG_RSH='ssh -Tx -c aes128-gcm@openssh.com'${EOL}
 echo Starting borg prune...${EOL}
 borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
