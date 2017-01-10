@@ -31,6 +31,8 @@ $BorgArchiveTag = ""
 
 $VBoxManage = 'C:\Program Files\Oracle\VirtualBox\VBoxManage'
 $BorgBash = 'C:\Program Files\Borg\bin\bash.exe'
+$SSHArgs = '-Tx -c aes128-gcm@openssh.com'
+$SSHBase = "ssh ${SSHArgs} ${BackupHost}"
 
 Function Select-VM () {
   Write-Host 'Probing for VMs...'
@@ -101,7 +103,7 @@ Function Snapshot-Create () {
     # Start the backup
     & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
-export BORG_RSH='ssh -Tx -c aes128-gcm@openssh.com'${EOL}
+export BORG_RSH='ssh ${SSHArgs}'${EOL}
 echo Starting borg backup...${EOL}
 cd ${Global:BorgTarget}${EOL}
 borg create -vspx -C lz4 ${BorgFlags} ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveTag}-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
@@ -128,7 +130,7 @@ Function Snapshot-Prune () {
     # Start the backup
     & $BorgBash -l -c @"
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
-export BORG_RSH='ssh -Tx -c aes128-gcm@openssh.com'${EOL}
+export BORG_RSH='ssh ${SSHArgs}'${EOL}
 echo Starting borg prune...${EOL}
 borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
@@ -152,19 +154,19 @@ Function Snapshot-Restore () {
 
   # Mount the borg repository
   Write-Host "Getting list of Archives..."
-  $MountpointTest=@(& "C:\Program Files\Borg\bin\bash.exe" -l -c "ssh ${BackupHost} 'cd ${RemoteMountpoint}; find . -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
+  $MountpointTest=@(& $BorgBash -l -c "${SSHBase} 'cd ${RemoteMountpoint}; find . -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
   If ($MountpointTest.Count -ne 0) {
-    & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+    & $BorgBash -l -c "${SSHBase} 'fusermount -u ${RemoteMountpoint}'"
   }
 
   Write-Host "Verified mountpoint."
 
   Try {
-    & $BorgBash -l -c "ssh ${BackupHost} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
+    & $BorgBash -l -c "${SSHBase} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
     Remove-Variable PlainPassword
 
     Write-Host "Mount completed"
-    $Archives=@(& $BorgBash -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint} -name \`"${Global:BorgArchiveTag}*\`" -maxdepth 1 ! -path . -printf \`"%f\n\`" | sort -n'")
+    $Archives=@(& $BorgBash -l -c "${SSHBase} 'find ${RemoteMountpoint} -name \`"${Global:BorgArchiveTag}*\`" -maxdepth 1 ! -path . -printf \`"%f\n\`" | sort -n'")
 
     Write-Host "Archive list retrieved"
     Write-Host
@@ -188,7 +190,7 @@ Function Snapshot-Restore () {
           $ArchiveSelected = $ArchiveSelected -as [int]
         }
         Catch {
-          Continue
+          Return
         }
         If (0 -le $ArchiveSelected -le $Archives.count - 1) {
           Break
@@ -201,7 +203,7 @@ Function Snapshot-Restore () {
     $Path = ""
 
     While ($true) {
-      $DirScan = @(& $BorgBash -l -c "ssh ${BackupHost} 'find ${RemoteMountpoint}/${Archive}/${Path} -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
+      $DirScan = @(& $BorgBash -l -c "${SSHBase} 'find ${RemoteMountpoint}/${Archive}/${Path} -maxdepth 1 ! -path . -printf \`"%f\n\`"'")
 
       If (($DirScan -like '*.vbox').count -eq 1) {
         Break
@@ -220,14 +222,14 @@ Function Snapshot-Restore () {
       & $VBoxManage controlvm $Global:VMname poweroff
     }
 
-    bash -c "time rsync -vah -e 'ssh -Tx -c aes128-gcm@openssh.com' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${RsyncFlags} ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
+    bash -c "time rsync -vah -e 'ssh ${SSHArgs}' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${RsyncFlags} ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
   }
   Catch {
     Write-Output $_.Exception.Message
     Write-Output "An error has occured. Cleaning up..."
   }
   Finally {
-    & $BorgBash -l -c "ssh ${BackupHost} 'fusermount -u ${RemoteMountpoint}'"
+    & $BorgBash -l -c "${SSHBase} 'fusermount -u ${RemoteMountpoint}'"
     Write-Host "Unmounted filesystem."
   }
 
