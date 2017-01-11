@@ -78,7 +78,7 @@ Function Select-VM () {
   $Global:BorgTarget = $Global:BorgTarget -replace '\\', '/' -replace ' ', '\\ '
   $Global:BorgArchiveTag = $Global:VMName -replace ' ','-'
 
-  Write-Host "VM located at: $Global:BorgTarget"
+  Write-Host "VM located at: $Global:VMLocation"
 }
 
 Function Snapshot-Create () {
