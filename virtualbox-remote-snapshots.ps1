@@ -37,27 +37,42 @@ $SSHBase = "ssh ${SSHArgs} ${BackupHost}"
 Function Select-VM () {
   Write-Host 'Probing for VMs...'
 
-  $VMs = (& $VBoxManage list vms)
+  $VMs = @(& $VBoxManage list vms)
+
   For ($I = 0; $I -lt $VMs.count; $I++) {
     $VMs[$I] = [regex]::match($VMs[$I], '\"(.*?)\"').Groups[1].Value
-    Write-Host ('[{0}] {1}' -f $I, $VMs[$I])
   }
 
-  While ($true) {
-    Write-Host 'Select a VM by number: ' -nonewline -fore magenta
-    $VMIndex = Read-Host
-    Try {
-      $VMIndex = $VMIndex -as [int]
-    }
-    Catch {
-      Continue
-    }
-    If (0 -le $VMIndex -le $VMs.count - 1) {
-      $Global:VMname = $VMs[$VMIndex]
-      Break
+  If ($VMs.Count -eq 2 -and ! [string]::ISNullOrEmpty($Global:VMName)) {
+    # just switch to the other VM
+    If ($VMs[1] -eq $Global:VMName) {
+      $Global:VMName = $VMs[0]
     }
     Else {
-      Write-Host 'Index out of range!'
+      $Global:VMName = $VMs[1]
+    }
+  }
+  Else {
+    For ($I = 0; $I -lt $VMs.count; $I++) {
+      Write-Host ('[{0}] {1}' -f $I, $VMs[$I])
+    }
+
+    While ($true) {
+      Write-Host 'Select a VM by number: ' -nonewline -fore magenta
+      $VMIndex = Read-Host
+      Try {
+        $VMIndex = $VMIndex -as [int]
+      }
+      Catch {
+        Continue
+      }
+      If (0 -le $VMIndex -le $VMs.count - 1) {
+        $Global:VMname = $VMs[$VMIndex]
+        Break
+      }
+      Else {
+        Write-Host 'Index out of range!'
+      }
     }
   }
 
