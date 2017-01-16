@@ -50,3 +50,5 @@ Snapshots can be pruned with no interaction from the host at all, online or offl
 # Disclaimer 
 
 This system is still in a very early state. Lots of important functionality is missing, and many design decisions still need to be made. The code is TBH pretty horrifying (maybe because it's in PowerShell). However, the system is already battle-tested, and will see continuous use from me over the next few years.
+
+It might also be a good idea to configure the VM to expose a portable CPU using `VBoxManage modifyvm <VMName> --cpuid-portability-level 3` if snapshots are restored to a different machine.
