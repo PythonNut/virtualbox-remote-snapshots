@@ -174,7 +174,7 @@ Function Snapshot-Restore () {
     & $BorgBash -l -c "${SSHBase} 'fusermount -u ${RemoteMountpoint}'"
   }
 
-  Write-Host "Verified mountpoint."
+  Write-Host "Verified mountpoint"
 
   Try {
     & $BorgBash -l -c "${SSHBase} 'BORG_PASSPHRASE=${PlainPassword} borg mount -o allow_other ${BackupHostPath} ${RemoteMountpoint}'"
@@ -223,7 +223,7 @@ Function Snapshot-Restore () {
       If (($DirScan -like '*.vbox').count -eq 1) {
         Break
       }
-      ElseIf ($DirScan.count -gt 1) {
+      ElseIf ($DirScan.Count -gt 1) {
         Throw "Could not detect VM config file in archive!"
       }
 
@@ -237,15 +237,28 @@ Function Snapshot-Restore () {
       & $VBoxManage controlvm $Global:VMname poweroff
     }
 
-    bash -c "time rsync -vah -e 'ssh ${SSHArgs}' --compress-level=3 --inplace --info=progress2 --stats --delete-before ${RsyncFlags} ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
+    & $VBoxManage unregistervm $Global:VMname
+
+    Write-Host "Unregistered VM" -fore cyan
+
+    bash -c "time rsync -vah -e 'ssh ${SSHArgs}' --inplace --info=progress2 --stats --delete-before ${RsyncFlags} ${BackupHost}:'${RemoteMountpoint}/${Archive}/${Path}' ${ExtractTarget}/"
   }
   Catch {
     Write-Output $_.Exception.Message
     Write-Output "An error has occured. Cleaning up..."
   }
   Finally {
+    $VBoxFiles = @(Get-ChildItem ${Global:VMLocation}/*.vbox)
+    If ($VBoxFiles.Count -ne 1) {
+      Throw "Could not detect VM config file in extracted archive!"
+    }
+
+    $VBoxFileName = $VBoxFiles[0].Name
+    & $VBoxManage registervm "${Global:VMLocation}/${VBoxFileName}"
+    Write-Host "Registered VM" -fore cyan
+
     & $BorgBash -l -c "${SSHBase} 'fusermount -u ${RemoteMountpoint}'"
-    Write-Host "Unmounted filesystem."
+    Write-Host "Unmounted filesystem"
   }
 
   $VMSnapshots = @(& $VBoxManage snapshot $Global:VMName list | Select-String 'vrs-temp')
