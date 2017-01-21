@@ -43,7 +43,10 @@ Function Select-VM () {
     $VMs[$I] = [regex]::match($VMs[$I], '\"(.*?)\"').Groups[1].Value
   }
 
-  If ($VMs.Count -eq 2 -and ! [string]::ISNullOrEmpty($Global:VMName)) {
+  If ([string]::ISNullOrEmpty($Global:VMName)) {
+    $Global:VMName = $VMs[0]
+  }
+  ElseIf ($VMs.Count -eq 2) {
     # just switch to the other VM
     If ($VMs[1] -eq $Global:VMName) {
       $Global:VMName = $VMs[0]
@@ -93,7 +96,7 @@ Function Select-VM () {
   $Global:BorgTarget = $Global:BorgTarget -replace '\\', '/' -replace ' ', '\\ '
   $Global:BorgArchiveTag = $Global:VMName -replace ' ','-'
 
-  Write-Host "VM located at: $Global:VMLocation"
+  Write-Host "VM located at: $Global:VMLocation" -fore cyan
 }
 
 Function Snapshot-Create () {
