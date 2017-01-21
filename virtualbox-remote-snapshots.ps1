@@ -138,6 +138,38 @@ borg create -vspx -C lz4 ${BorgFlags} ${BackupHost}:${BackupHostPath}::'${Global
   }
 }
 
+Function Snapshot-Migrate () {
+  # Check if VMs are online
+  $VMOnline = @(& $VBoxManage list runningvms | Select-String $Global:VMName).Count -ne 0
+
+  If ($VMOnline) {
+    Write-Host 'Saving Vm state...' -fore cyan
+    & $VBoxManage controlvm $Global:VMname savestate
+  }
+
+  Try {
+    $StateSuffix = If ($VMOnline) { 'online' } Else { 'offline' }
+    # Decrypt the password in memory
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePassword)
+    $PlainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+    Remove-Variable BSTR
+
+    # Start the backup
+    & $BorgBash -l -c @"
+export BORG_PASSPHRASE=${PlainPassword}${EOL}
+export BORG_RSH='ssh ${SSHArgs}'${EOL}
+echo Starting borg backup...${EOL}
+cd ${Global:BorgTarget}${EOL}
+borg create -vspx -C lz4 ${BorgFlags} ${BackupHost}:${BackupHostPath}::'${Global:BorgArchiveTag}-{now:%Y.%m.%d-%H.%M.%S}-$StateSuffix' .${EOL}
+"@
+    Remove-Variable PlainPassword
+  }
+  Catch {
+    Write-Output $_.Exception.Message
+    Write-Output 'An error has occured. Cleaning up...'
+  }
+}
+
 Function Snapshot-Prune () {
   Try {
     # Decrypt the password in memory
@@ -282,6 +314,9 @@ While ($true) {
   $ActionSnapshot = New-Object System.Management.Automation.Host.ChoiceDescription `
     '&Snapshot', 'Take a snapshot of this virtual machine.'
 
+  $ActionMigrate = New-Object System.Management.Automation.Host.ChoiceDescription `
+    '&Migrate', 'Migrate this virtual machine to another host.'
+
   $ActionPrune = New-Object System.Management.Automation.Host.ChoiceDescription `
     '&Prune', 'Prune old snapshots for this virtual machine.'
 
@@ -296,6 +331,7 @@ While ($true) {
 
   $ActionOptions = [System.Management.Automation.Host.ChoiceDescription[]]( `
     $ActionSnapshot, `
+    $ActionMigrate, `
     $ActionPrune, `
     $ActionRestore, `
     $ActionSelect, `
@@ -312,15 +348,18 @@ While ($true) {
       Snapshot-Create
     }
     1 {
-      Snapshot-Prune
+      Snapshot-Migrate
     }
     2 {
-      Snapshot-Restore
+      Snapshot-Prune
     }
     3 {
-      Select-VM
+      Snapshot-Restore
     }
     4 {
+      Select-VM
+    }
+    5 {
       Exit
     }
   }
