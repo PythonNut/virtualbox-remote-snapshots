@@ -182,7 +182,7 @@ Function Snapshot-Prune () {
 export BORG_PASSPHRASE=${PlainPassword}${EOL}
 export BORG_RSH='ssh ${SSHArgs}'${EOL}
 echo Starting borg prune...${EOL}
-borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
+borg prune -vs --list ${BackupHost}:${BackupHostPath} -P '${Global:BorgArchiveTag}' --keep-within 2H -H 8 -d 7 -w 3${EOL}
 "@
     Remove-Variable PlainPassword
   }
