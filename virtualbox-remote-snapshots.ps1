@@ -1,5 +1,6 @@
 # EOL hack to stop Cygwin from complaining about carriage returns
 $EOL=";: "
+$PersistFile="./.vrs_persist"
 
 # Parse the config file
 Get-Content "$Pwd\virtualbox-remote-snapshots.conf" | ForEach-Object -begin {$Conf=@{}} -process {
@@ -35,6 +36,9 @@ $SSHArgs = '-Tx -c aes128-gcm@openssh.com'
 $SSHBase = "ssh ${SSHArgs} ${BackupHost}"
 
 Function Select-VM () {
+  If (-not (Test-Path $PersistFile)) {
+    New-Item $PersistFile -type file
+  }
   Write-Host 'Probing for VMs...'
 
   $VMs = @(& $VBoxManage list vms)
@@ -44,15 +48,21 @@ Function Select-VM () {
   }
 
   If ([string]::ISNullOrEmpty($Global:VMName)) {
-    $Global:VMName = $VMs[0]
+    Try {
+      $Global:VMName = $VMs[(Get-Content $PersistFile)]
+    } Catch {
+      $Global:VMName = $VMs[0]
+    }
   }
   ElseIf ($VMs.Count -eq 2) {
     # just switch to the other VM
     If ($VMs[1] -eq $Global:VMName) {
       $Global:VMName = $VMs[0]
+      Set-Content $PersistFile 0
     }
     Else {
       $Global:VMName = $VMs[1]
+      Set-Content $PersistFile 1
     }
   }
   Else {
@@ -70,6 +80,7 @@ Function Select-VM () {
         Continue
       }
       If (0 -le $VMIndex -le $VMs.count - 1) {
+        Set-Content $PersistFile $VMIndex
         $Global:VMname = $VMs[$VMIndex]
         Break
       }
